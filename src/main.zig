@@ -44,6 +44,8 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
 
     if (std.mem.startsWith(u8, request.head.target, "/index.html")) {
         try request.respond("", .{});
+    } else if (std.mem.startsWith(u8, request.head.target, "")) {
+        try request.respond("", .{});
     } else {
         try request.respond("", .{ .status = .not_found });
     }
