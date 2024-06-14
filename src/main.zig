@@ -8,6 +8,10 @@ const server_port = 4221;
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
 
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
+    const allocator = gpa.allocator();
+
     var address = try net.Address.resolveIp(server_addr, server_port);
     // Address Var is a net.Address Object
     // Server Var is a net.Server Object
@@ -28,8 +32,19 @@ pub fn main() !void {
             else => |e| return e,
         };
 
-        _ = try request.respond("", .{});
+        try handleRequest(&request, allocator);
 
         try stdout.print("client connected!", .{});
+    }
+}
+
+fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !void {
+    const body = try (try request.reader()).readAllAlloc(allocator, 8192);
+    defer allocator.free(body);
+
+    if (std.mem.startsWith(u8, request.head.target, "/index.html")) {
+        try request.respond("", .{});
+    } else {
+        try request.respond("", .{ .status = .not_found });
     }
 }
