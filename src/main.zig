@@ -46,6 +46,12 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
         try request.respond("", .{});
     } else if (std.mem.eql(u8, request.head.target, "/")) {
         try request.respond("", .{});
+    } else if (std.mem.startsWith(u8, request.head.target, "/echo")) {
+        var echo = std.mem.splitAny(u8, request.head.target, "/");
+        _ = echo.next();
+        _ = echo.next();
+        const respEcho = echo.next().?;
+        try request.respond(respEcho, .{});
     } else {
         try request.respond("", .{ .status = .not_found });
     }
