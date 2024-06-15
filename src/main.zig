@@ -51,7 +51,7 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
         _ = echo.next();
         _ = echo.next();
         const respEcho = echo.next().?;
-        try request.respond(respEcho, .{});
+        try request.respond(respEcho, .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "text/plain" }} });
     } else {
         try request.respond("", .{ .status = .not_found });
     }
