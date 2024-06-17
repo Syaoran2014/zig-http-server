@@ -6,7 +6,7 @@ const server_addr = "127.0.0.1";
 const server_port = 4221;
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+    // const stdout = std.io.getStdOut().writer();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
@@ -20,21 +20,26 @@ pub fn main() !void {
     });
     defer listener.deinit();
 
-    const server = try listener.accept();
-    defer server.stream.close();
+    try runServer(&listener, allocator);
+}
 
-    var client_head_buffer: [1024]u8 = undefined;
-    var http_server = http.Server.init(server, &client_head_buffer);
+fn runServer(listener: *net.Server, allocator: std.mem.Allocator) !void {
+    outer: while (true) {
+        const server = try listener.accept();
+        defer server.stream.close();
 
-    while (http_server.state == .ready) {
-        var request = http_server.receiveHead() catch |err| switch (err) {
-            error.HttpConnectionClosing => continue,
-            else => |e| return e,
-        };
+        var client_head_buffer: [1024]u8 = undefined;
+        var http_server = http.Server.init(server, &client_head_buffer);
 
-        try handleRequest(&request, allocator);
+        while (http_server.state == .ready) {
+            var request = http_server.receiveHead() catch |err| switch (err) {
+                error.HttpHeadersInvalid => continue :outer,
+                error.HttpConnectionClosing => continue,
+                else => |e| return e,
+            };
 
-        try stdout.print("client connected!", .{});
+            try handleRequest(&request, allocator);
+        }
     }
 }
 
