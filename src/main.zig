@@ -141,7 +141,7 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
                         try request.respond("", .{ .status = .bad_request });
                     }
                 },
-                else => try request.respond("", .{ .status = .not_found }),
+                else => try request.respond("", .{}),
             }
         },
         http.Method.POST => {
