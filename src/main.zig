@@ -34,16 +34,22 @@ pub fn main() !void {
     });
     defer listener.deinit();
 
-    try runServer(&listener, allocator);
+    // Allows Concurrent Connections properly....
+    while (true) {
+        var server = try listener.accept();
+        // defer server.stream.close();
+        var handle = try std.Thread.spawn(.{ .allocator = allocator }, createConnection, .{ &server, allocator });
+        handle.detach();
+    }
 }
 
-fn runServer(listener: *net.Server, allocator: std.mem.Allocator) !void {
+fn createConnection(Conn: *net.Server.Connection, allocator: std.mem.Allocator) !void {
     outer: while (true) {
-        const server = try listener.accept();
-        defer server.stream.close();
+        // const server = try listener.accept();
+        // defer server.stream.close();
 
         var client_head_buffer: [1024]u8 = undefined;
-        var http_server = http.Server.init(server, &client_head_buffer);
+        var http_server = http.Server.init(Conn.*, &client_head_buffer);
 
         while (http_server.state == .ready) {
             var request = http_server.receiveHead() catch |err| switch (err) {
@@ -64,8 +70,7 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
     if (std.mem.startsWith(u8, request.head.target, "/index.html")) {
         try request.respond("", .{});
     } else if (std.mem.eql(u8, request.head.target, "/")) {
-        //wtf why did this change??
-        try request.respond("HTTP-version", .{});
+        try request.respond("", .{});
     } else if (std.mem.startsWith(u8, request.head.target, "/echo")) {
         var echo = std.mem.splitAny(u8, request.head.target, "/");
         _ = echo.next();
