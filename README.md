@@ -1,3 +1,14 @@
+# My Notes:
+For this challenge, I used `zig (0.13)` and it seemed to work with no issues.
+
+I attempted to focuse on using the built in http.server library, This seemed to do well and I didn't see any issues.
+
+One issue I had when testing with concurrent connections, It would sometimes fail on the codecrafters side. 
+This could simply be because my code didn't work properly or just an inherit bug when using zig, or specifically zig v0.13
+
+By no means was this an "optimal" or the most efficient soluction, but it does work and has passed their tests.
+
+
 [![progress-banner](https://backend.codecrafters.io/progress/http-server/c025957b-be48-497f-bb72-b0ad03139f99)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for Zig solutions to the
@@ -14,25 +25,3 @@ and more.
 **Note**: If you're viewing this repo on GitHub, head over to
 [codecrafters.io](https://codecrafters.io) to try the challenge.
 
-# Passing the first stage
-
-The entry point for your HTTP server implementation is in `src/main.zig`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
-```
-
-Time to move on to the next stage!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `zig (0.12)` installed locally
-1. Run `./your_server.sh` to run your program, which is implemented in
-   `src/main.zig`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
