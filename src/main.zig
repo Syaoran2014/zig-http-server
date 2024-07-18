@@ -21,10 +21,10 @@ pub fn main() !void {
         if (std.mem.eql(u8, arg, "--directory")) {
             filePath = args.next().?;
             break;
+        } else {
+            filePath = "/tmp/";
         }
     }
-
-    std.debug.print("File path was set to: {!s}\n", .{filePath orelse return error.FilePathNotGiven});
 
     var address = try net.Address.resolveIp(server_addr, server_port);
     // Address Var is a net.Address Object
@@ -90,7 +90,6 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
         file = targetArray.next().?;
 
         const absFilePath = try std.mem.concat(allocator, u8, &.{ filePath.?[0..filePath.?.len], file[0..file.len] });
-        std.debug.print("{s}\n", .{absFilePath});
 
         const fileContent = std.fs.openFileAbsolute(absFilePath, .{}) catch |e| switch (e) {
             error.FileNotFound => {
