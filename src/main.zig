@@ -55,61 +55,120 @@ fn createConnection(Conn: *net.Server.Connection, allocator: std.mem.Allocator) 
             var request = http_server.receiveHead() catch |err| switch (err) {
                 error.HttpHeadersInvalid => continue :outer,
                 error.HttpConnectionClosing => continue,
+                error.HttpHeadersUnreadable => continue,
                 else => |e| return e,
             };
-
             try handleRequest(&request, allocator);
         }
     }
 }
 
+const Routes = enum {
+    echo,
+    useragent,
+    files,
+    null,
+    root,
+};
+
 fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !void {
     const body = try (try request.reader()).readAllAlloc(allocator, 8192);
     defer allocator.free(body);
+    var headers = request.iterateHeaders();
 
-    if (std.mem.startsWith(u8, request.head.target, "/index.html")) {
-        try request.respond("", .{});
-    } else if (std.mem.eql(u8, request.head.target, "/")) {
-        try request.respond("", .{});
-    } else if (std.mem.startsWith(u8, request.head.target, "/echo")) {
-        var echo = std.mem.splitAny(u8, request.head.target, "/");
-        _ = echo.next();
-        _ = echo.next();
-        const respEcho = echo.next().?;
-        try request.respond(respEcho, .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "text/plain" }} });
-    } else if (std.mem.startsWith(u8, request.head.target, "/user-agent")) {
-        var it = request.iterateHeaders();
-        var respBody: []const u8 = undefined;
-        while (it.next()) |header| {
-            if (std.mem.eql(u8, header.name, "User-Agent")) {
-                respBody = header.value;
-            }
-        }
-        try request.respond(respBody, .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "text/plain" }} });
-    } else if (std.mem.startsWith(u8, request.head.target, "/files")) {
-        //Step 2: Check if file exists
-        //Step 3: If file exists, grab the contents of the file.
-        //Step 4: Respond with the contents of the file.
+    //Creates Target array to later use.
+    var targets = std.ArrayList([]const u8).init(allocator);
+    defer targets.deinit();
+    var requestTargets = std.mem.splitAny(u8, request.head.target, "/");
+    while (requestTargets.next()) |targ| {
+        if (targ.len == 0) continue;
+        try targets.append(targ);
+    }
 
-        var file: []const u8 = undefined;
-        var targetArray = std.mem.splitBackwardsAny(u8, request.head.target, "/");
-        file = targetArray.next().?;
-
-        const absFilePath = try std.mem.concat(allocator, u8, &.{ filePath.?[0..filePath.?.len], file[0..file.len] });
-
-        const fileContent = std.fs.openFileAbsolute(absFilePath, .{}) catch |e| switch (e) {
-            error.FileNotFound => {
-                try request.respond("", .{ .status = .not_found });
-                return;
-            },
-            else => return e,
-        };
-
-        var content = [_]u8{'A'} ** 64;
-        const byte_read = try fileContent.read(&content);
-
-        try request.respond(content[0..byte_read], .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "application/octet-stream" }} });
+    // Actually makes the Array and changes it to an Enum I can Switch from.
+    const targetArray = targets.items;
+    var route: ?Routes = null;
+    if (targetArray.len == 0) {
+        route = Routes.root; // If Array len is 0, can assume "localhost:4221/"
+    } else if (std.mem.eql(u8, targetArray[0], "user-agent")) { //Special Case, can't use hypens in enums.
+        //Due to this "localhost:4221/useragent" now works
+        route = std.meta.stringToEnum(Routes, "useragent");
     } else {
-        try request.respond("", .{ .status = .not_found });
+        route = std.meta.stringToEnum(Routes, targetArray[0]);
+    }
+
+    //If route is null, can assume bad request.
+    if (route == null) {
+        try request.respond("", .{ .status = .bad_request });
+        return;
+    }
+
+    switch (request.head.method) {
+        http.Method.GET => {
+            switch (route.?) {
+                Routes.echo => {
+                    if (targetArray[1].len > 0) {
+                        try request.respond(targetArray[1], .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "text/plain" }} });
+                    } else {
+                        try request.respond("", .{ .status = .bad_request });
+                    }
+                },
+                Routes.useragent => {
+                    var respBody: []const u8 = undefined;
+                    while (headers.next()) |header| {
+                        if (std.mem.eql(u8, header.name, "User-Agent")) {
+                            respBody = header.value;
+                        }
+                    }
+                    try request.respond(respBody, .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "text/plain" }} });
+                },
+                Routes.files => {
+                    if (targetArray[1].len > 0) {
+                        const absFilePath = try std.mem.concat(allocator, u8, &.{ filePath.?[0..filePath.?.len], targetArray[1][0..targetArray[1].len] });
+                        const fileContent = std.fs.openFileAbsolute(absFilePath, .{}) catch |e| switch (e) {
+                            error.FileNotFound => {
+                                try request.respond("", .{ .status = .not_found });
+                                return;
+                            },
+                            else => return e,
+                        };
+
+                        var content = [_]u8{'A'} ** 64;
+                        const byte_read = try fileContent.read(&content);
+
+                        try request.respond(content[0..byte_read], .{ .extra_headers = &.{.{ .name = "Content-Type", .value = "application/octet-stream" }} });
+                    } else {
+                        try request.respond("", .{ .status = .bad_request });
+                    }
+                },
+                else => try request.respond("", .{}),
+            }
+        },
+        http.Method.POST => {
+            switch (route.?) {
+                Routes.files => {
+                    if (body.len == 0) {
+                        try request.respond("", .{ .status = .bad_request });
+                        return;
+                    }
+                    if (targetArray[1].len == 0) {
+                        try request.respond("", .{ .status = .bad_request });
+                        return;
+                    }
+                    const absFilePath = try std.mem.concat(allocator, u8, &.{ filePath.?[0..filePath.?.len], targetArray[1][0..targetArray[1].len] });
+                    const file: std.fs.File = try std.fs.createFileAbsolute(absFilePath, .{});
+                    defer file.close();
+
+                    const byteWritten = try file.write(body);
+                    if (byteWritten > 0) {
+                        try request.respond("", .{ .status = .created });
+                    } else {
+                        try request.respond("", .{ .status = .internal_server_error });
+                    }
+                },
+                else => try request.respond("", .{ .status = .bad_request }),
+            }
+        },
+        else => try request.respond("", .{ .status = .bad_request }),
     }
 }
