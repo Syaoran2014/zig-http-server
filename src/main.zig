@@ -100,7 +100,6 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
     //If route is null, can assume 404.
     if (route == null) {
         try request.respond("", .{ .status = .not_found });
-        return;
     }
 
     switch (request.head.method) {
