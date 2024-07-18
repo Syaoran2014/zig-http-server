@@ -64,7 +64,8 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
     if (std.mem.startsWith(u8, request.head.target, "/index.html")) {
         try request.respond("", .{});
     } else if (std.mem.eql(u8, request.head.target, "/")) {
-        try request.respond("", .{});
+        //wtf why did this change??
+        try request.respond("HTTP-version", .{});
     } else if (std.mem.startsWith(u8, request.head.target, "/echo")) {
         var echo = std.mem.splitAny(u8, request.head.target, "/");
         _ = echo.next();
