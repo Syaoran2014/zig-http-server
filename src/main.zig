@@ -97,9 +97,9 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
         route = std.meta.stringToEnum(Routes, targetArray[0]);
     }
 
-    //If route is null, can assume bad request.
+    //If route is null, can assume 404.
     if (route == null) {
-        try request.respond("", .{ .status = .bad_request });
+        try request.respond("", .{ .status = .not_found });
         return;
     }
 
@@ -141,7 +141,7 @@ fn handleRequest(request: *http.Server.Request, allocator: std.mem.Allocator) !v
                         try request.respond("", .{ .status = .bad_request });
                     }
                 },
-                else => try request.respond("", .{}),
+                else => try request.respond("", .{ .status = .not_found }),
             }
         },
         http.Method.POST => {
